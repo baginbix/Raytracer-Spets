@@ -40,11 +40,52 @@ class Ray:
     def at(self, t):
         return self.origin + self.direction * t      
 
+class HitRecord:
+    def __init__(self,color, normal):
+        self.color = color
+        self.normal = normal
 
-def ray_color(ray):
+class Sphere:
+    def __init__(self,center, radius, color):
+        self.center = center
+        self.radius = radius
+        self.color = color
+
+def ray_color(ray, sphere_list):
     unit_direction = ray.direction.as_unit_vector()
+    sphere_pos = Vec3(0, 0, -3)
+    sphere_radius = 2
+    hit_record = HitRecord(Vec3(0,0,0), Vec3(0,0,0))
+    sun_direction = Vec3(-1,-1,-1).as_unit_vector()
+    for s in sphere_list:
+        if sphere(ray, s.center, s.radius,s.color, hit_record):
+            return hit_record.color * max(hit_record.normal.dot(sun_direction * -1.0),0)
+        
     a = 0.5 * (unit_direction.y + 1.0)
     return Vec3(1,1,1) * (1.0 - a)   + Vec3(0.5, 0.7, 1) * a
+
+def sphere(ray, center, radius, color, hit_record):
+
+    oc = ray.origin - center     # TODO: Skifta för det är fel
+    a = ray.direction.length_squared()
+    b = oc.dot(ray.direction) * -2.0
+    c = oc.length_squared() - radius * radius 
+    discriminant = b * b - 4 * a * c
+    if discriminant < 0:
+        return False
+    
+    d_sqrt = math.sqrt(discriminant)
+    t1 = (-b - d_sqrt) / (2.0 * a)
+    t2 = (-b + d_sqrt)/(2.0*a)
+
+    t = t1 if t1 > 0 else t2
+    if t < 0:
+        return False
+
+    hit_point = ray.at(t)
+    hit_record.normal = (hit_point - center) / radius
+    hit_record.color = color
+    return True
 
 aspect_ratio = 16.0/9.0
 
@@ -61,11 +102,13 @@ viewport_uv = Vec3(viewport_width, -viewport_height, 0)
 
 pixel_delt_uv = Vec3(viewport_uv.x / width, viewport_uv.y / height,0) 
 
-sphere_pos = Vec3(0, 0, -1)
-sphere_radius = 2
 
 viewport_upper_left = camera_pos - Vec3(0,0,focal_length) - viewport_uv/2.0
 pixel00_loc =  viewport_upper_left + pixel_delt_uv/2.0
+
+sphere_list = [Sphere(Vec3(0, 0, -1), 0.5, Vec3(1, 0, 1)),
+                Sphere(Vec3(0,-100.5,-1),100, Vec3(0,1,0))
+               ]
 
 print("P3")
 print(width, height)
@@ -76,7 +119,7 @@ for y in range(height):
         pixel_center = pixel00_loc + Vec3(pixel_delt_uv.x * x, pixel_delt_uv.y * y, 0)
         ray_direction = pixel_center - camera_pos
         ray = Ray(camera_pos,ray_direction)
-        color = ray_color(ray)
+        color = ray_color(ray, sphere_list)
         r = math.floor(color.x * 255)
         g = math.floor(color.y * 255)
         b = math.floor(color.z * 255)
