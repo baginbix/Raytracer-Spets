@@ -31,6 +31,9 @@ class Vec3:
         len = self.length()
         return  self / len
     
+    def reflect(self, normal):
+        return self - normal * (2 * self.dot(normal))
+    
 class Ray:
 
     def __init__(self, origin, direction):
@@ -44,6 +47,8 @@ class HitRecord:
     def __init__(self,color, normal):
         self.color = color
         self.normal = normal
+        self.p = Vec3(0,0,0)  
+        self.t = math.inf
 
 class Sphere:
     def __init__(self,center, radius, color):
@@ -53,20 +58,32 @@ class Sphere:
 
 def ray_color(ray, sphere_list):
     unit_direction = ray.direction.as_unit_vector()
-    sphere_pos = Vec3(0, 0, -3)
-    sphere_radius = 2
+    bounces = 5
     hit_record = HitRecord(Vec3(0,0,0), Vec3(0,0,0))
     sun_direction = Vec3(-1,-1,-1).as_unit_vector()
-    for s in sphere_list:
-        if sphere(ray, s.center, s.radius,s.color, hit_record):
-            return hit_record.color * max(hit_record.normal.dot(sun_direction * -1.0),0)
-        
-    a = 0.5 * (unit_direction.y + 1.0)
-    return Vec3(1,1,1) * (1.0 - a)   + Vec3(0.5, 0.7, 1) * a
+    color = Vec3(0,0,0)
+    multiplier = 1.0
+    for i in range(bounces):
+        hit = False
+        # Kollar vilken sfär som träffas
+        for s in sphere_list:
+            if sphere(ray, s.center, s.radius,s.color, hit_record):
+                hit = True
+        if hit:
+            rd =ray.direction.reflect(hit_record.normal)
+            rayPos = hit_record.p + rd * 0.0001  
+            ray = Ray(rayPos, rd)    
+            color += hit_record.color * max(hit_record.normal.dot(sun_direction * -1.0),0) * multiplier
+            multiplier *= 0.5
+        else:
+            a = 0.5 * (unit_direction.y + 1.0)
+            bg = Vec3(1,1,1) * (1.0 - a)   + Vec3(0.5, 0.7, 1) * a
+            return bg * multiplier + color
+    return Vec3(0,0,0)  # Om ingen sfär träffas returneras svart
 
 def sphere(ray, center, radius, color, hit_record):
 
-    oc = ray.origin - center     # TODO: Skifta för det är fel
+    oc = center - ray.origin    
     a = ray.direction.length_squared()
     b = oc.dot(ray.direction) * -2.0
     c = oc.length_squared() - radius * radius 
@@ -78,13 +95,14 @@ def sphere(ray, center, radius, color, hit_record):
     t1 = (-b - d_sqrt) / (2.0 * a)
     t2 = (-b + d_sqrt)/(2.0*a)
 
-    t = t1 if t1 > 0 else t2
-    if t < 0:
+    if t1 > hit_record.t :
         return False
 
-    hit_point = ray.at(t)
+    hit_point = ray.at(t1)
     hit_record.normal = (hit_point - center) / radius
     hit_record.color = color
+    hit_record.p = hit_point
+    hit_record.t = t1
     return True
 
 aspect_ratio = 16.0/9.0
